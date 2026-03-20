@@ -48,7 +48,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 
-// 🔥 IMPORTANT: Auto migration (TABLE CREATE FIX)
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
