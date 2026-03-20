@@ -6,11 +6,11 @@ var builder = WebApplication.CreateBuilder(args);
 // 1. Add Services to the container
 builder.Services.AddControllers();
 
-// 2. Add Swagger/OpenAPI services
+// 2. Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// 3. Add CORS services
+// 3. CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll",
@@ -22,19 +22,39 @@ builder.Services.AddCors(options =>
         });
 });
 
-// 4. Add Database Context (POSTGRESQL)
+// 4. Database Context (PostgreSQL)
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        npgsqlOptions =>
+        {
+            npgsqlOptions.EnableRetryOnFailure(3); // retry if connection fails
+        }));
 
 var app = builder.Build();
 
+
+// ✅ 5. SAFE DATABASE MIGRATION (IMPORTANT FIX)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+
+    try
+    {
+        Console.WriteLine("Connecting to database...");
+
+        db.Database.Migrate();
+
+        Console.WriteLine("Database connected & migrated successfully");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(" DATABASE ERROR: " + ex.Message);
+    }
 }
 
-// 5. Configure the HTTP request pipeline
+
+// 6. Configure HTTP pipeline
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -44,9 +64,8 @@ app.UseSwaggerUI(c =>
 
 app.UseHttpsRedirection();
 
-// 6. Routing & CORS
+// 7. Routing & CORS
 app.UseRouting();
-
 app.UseCors("AllowAll");
 
 app.UseAuthorization();
