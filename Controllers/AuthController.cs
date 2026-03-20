@@ -18,56 +18,37 @@ namespace Hotel_KYC_Api.Controllers
 
         // ================= REGISTER =================
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+        public async Task<IActionResult> Register([FromBody] User user)
         {
-            if (request == null ||
-                string.IsNullOrEmpty(request.FullName) ||
-                string.IsNullOrEmpty(request.Email) ||
-                string.IsNullOrEmpty(request.Password) ||
-                string.IsNullOrEmpty(request.PhoneNumber))
-            {
-                return BadRequest(new { message = "All fields are required." });
-            }
-
-            var existingUser = await _context.Users
-                .AnyAsync(u => u.Email == request.Email);
-
-            if (existingUser)
-            {
-                return BadRequest(new { message = "Email is already registered." });
-            }
-
             try
             {
-                var user = new User
-                {
-                    FullName = request.FullName,
-                    Email = request.Email,
-                    PasswordHash = request.Password,
+                if (user == null)
+                    return BadRequest("Invalid data");
 
-                    PhoneNumber = request.PhoneNumber,
-                    CreatedAt = DateTime.Now,
-                    Role = "User"
+                if (string.IsNullOrEmpty(user.Email) || string.IsNullOrEmpty(user.Password))
+                    return BadRequest("Email and Password are required");
 
-                };
+                var existingUser = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Email == user.Email);
+
+                if (existingUser != null)
+                    return BadRequest("User already exists");
+
+                // 🔥 FIX: Password save
+                user.PasswordHash = user.Password;
+
+                // 🔥 SAFE ROLE (frontend nahi bheje to)
+                if (string.IsNullOrEmpty(user.Role))
+                    user.Role = "Guest";
 
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
 
-                return Ok(new
-                {
-                    message = "User registered successfully",
-                    userId = user.UserId
-                });
+                return Ok(new { message = "User registered successfully" });
             }
             catch (Exception ex)
             {
-                return BadRequest(new
-                {
-                    message = "Database error",
-                    error = ex.Message,
-                    inner = ex.InnerException?.Message
-                });
+                return StatusCode(500, ex.Message);
             }
         }
 
@@ -75,41 +56,43 @@ namespace Hotel_KYC_Api.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            Console.WriteLine("EMAIL: " + request.Email);
-            Console.WriteLine("PASSWORD: " + request.Password);
-
-            if (request == null ||
-                string.IsNullOrEmpty(request.Email) ||
-                string.IsNullOrEmpty(request.Password))
+            try
             {
-                return BadRequest(new { message = "Email and Password required" });
+                if (request == null ||
+                    string.IsNullOrEmpty(request.Email) ||
+                    string.IsNullOrEmpty(request.Password))
+                {
+                    return BadRequest(new { message = "Email and Password required" });
+                }
+
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Email == request.Email);
+
+                if (user == null)
+                {
+                    return Unauthorized(new { message = "User not found" });
+                }
+
+                if (request.Password != user.PasswordHash)
+                {
+                    return Unauthorized(new { message = "Invalid Username or Password" });
+                }
+
+                return Ok(new
+                {
+                    message = "Login successful",
+                    userId = user.UserId,
+                    fullName = user.FullName,
+                    email = user.Email,
+                    role = user.Role
+                });
             }
-
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == request.Email);
-
-            if (user == null)
+            catch (Exception ex)
             {
-                return Unauthorized(new { message = "User not found" });
+                return StatusCode(500, ex.Message);
             }
-
-            // ✅ SIMPLE PASSWORD MATCH
-            if (request.Password != user.PasswordHash)
-            {
-                return Unauthorized(new { message = "Invalid Username or Password" });
-            }
-
-            return Ok(new
-            {
-                message = "Login successful",
-                userId = user.UserId,
-                fullName = user.FullName,
-                email = user.Email,
-                role = user.Role
-            });
         }
 
-        // ================= LOGIN DTO =================
         public class LoginRequest
         {
             public string Email { get; set; }
