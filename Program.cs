@@ -22,11 +22,17 @@ builder.Services.AddCors(options =>
         });
 });
 
-// 4. Add Database Context (POSTGRESQL FIX)
+// 4. Add Database Context (POSTGRESQL)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
 
 // 5. Configure the HTTP request pipeline
 app.UseSwagger();
@@ -46,13 +52,5 @@ app.UseCors("AllowAll");
 app.UseAuthorization();
 
 app.MapControllers();
-
-
-
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
-}
 
 app.Run();
