@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hotel_KYC_Api.Controllers
 {
-    [ApiController]
     [Route("api/[controller]")]
+    [ApiController]
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -16,7 +16,7 @@ namespace Hotel_KYC_Api.Controllers
             _context = context;
         }
 
-        // ================= REGISTER =================
+        // ✅ REGISTER
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] User user)
         {
@@ -28,75 +28,79 @@ namespace Hotel_KYC_Api.Controllers
                 if (string.IsNullOrEmpty(user.Email) || string.IsNullOrEmpty(user.Password))
                     return BadRequest("Email and Password are required");
 
+                // ✅ Check duplicate email
                 var existingUser = await _context.Users
                     .FirstOrDefaultAsync(u => u.Email == user.Email);
 
                 if (existingUser != null)
                     return BadRequest("User already exists");
 
-                // 🔥 FIX: Password save
-                user.PasswordHash = user.Password;
+                // 🔐 Hash password (IMPORTANT FIX)
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.Password);
 
-                // 🔥 SAFE ROLE (frontend nahi bheje to)
+                // 🕒 Set created date
+                user.CreatedAt = DateTime.UtcNow;
+
+                // 👤 Default role
                 if (string.IsNullOrEmpty(user.Role))
                     user.Role = "Guest";
+
+                // ❌ Password plain save nahi karna
+                user.Password = null;
 
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
 
-                return Ok(new { message = "User registered successfully" });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, ex.Message);
-            }
-        }
-
-        // ================= LOGIN =================
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequest request)
-        {
-            try
-            {
-                if (request == null ||
-                    string.IsNullOrEmpty(request.Email) ||
-                    string.IsNullOrEmpty(request.Password))
-                {
-                    return BadRequest(new { message = "Email and Password required" });
-                }
-
-                var user = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == request.Email);
-
-                if (user == null)
-                {
-                    return Unauthorized(new { message = "User not found" });
-                }
-
-                if (request.Password != user.PasswordHash)
-                {
-                    return Unauthorized(new { message = "Invalid Username or Password" });
-                }
-
                 return Ok(new
                 {
-                    message = "Login successful",
-                    userId = user.UserId,
-                    fullName = user.FullName,
-                    email = user.Email,
-                    role = user.Role
+                    message = "User registered successfully",
+                    user.Email,
+                    user.Role
                 });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, ex.Message);
+                // 🔍 Detailed error
+                return StatusCode(500, ex.InnerException?.Message ?? ex.Message);
             }
         }
 
-        public class LoginRequest
+        // ✅ LOGIN
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginDto login)
         {
-            public string Email { get; set; }
-            public string Password { get; set; }
+            try
+            {
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Email == login.Email);
+
+                if (user == null)
+                    return Unauthorized("Invalid email or password");
+
+                // 🔐 Verify password
+                bool isValid = BCrypt.Net.BCrypt.Verify(login.Password, user.PasswordHash);
+
+                if (!isValid)
+                    return Unauthorized("Invalid email or password");
+
+                return Ok(new
+                {
+                    message = "Login successful",
+                    user.Email,
+                    user.Role
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ex.InnerException?.Message ?? ex.Message);
+            }
         }
+    }
+
+    // ✅ LOGIN DTO (clean request model)
+    public class LoginDto
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
     }
 }
