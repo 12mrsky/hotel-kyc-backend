@@ -13,7 +13,7 @@ builder.Services.AddSwaggerGen();
 // 3. Add CORS services
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFlutterApp",
+    options.AddPolicy("AllowAll",
         policy =>
         {
             policy.AllowAnyOrigin()
@@ -22,10 +22,9 @@ builder.Services.AddCors(options =>
         });
 });
 
-// 4. Add Database Context (FIXED)
-// This links your AppDbContext class to the ConnectionString in appsettings.json
+// 4. Add Database Context (POSTGRESQL FIX)
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
 
@@ -42,10 +41,18 @@ app.UseHttpsRedirection();
 // 6. Routing & CORS
 app.UseRouting();
 
-app.UseCors("AllowFlutterApp");
+app.UseCors("AllowAll");
 
 app.UseAuthorization();
 
 app.MapControllers();
+
+
+// 🔥 IMPORTANT: Auto migration (TABLE CREATE FIX)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
 
 app.Run();
