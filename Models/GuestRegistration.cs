@@ -39,7 +39,7 @@ namespace Hotel_KYC_Api.Models
         public string ComingFrom { get; set; }
         public string GoingTo { get; set; }
 
-        public DateTime CreatedAt { get; set; } = DateTime.Now;
+public DateTime CreatedAt { get; set; } = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
         public bool IsFlagged { get; set; } = false; // BIT maps to bool
         public string? PoliceRemarks { get; set; }
         public string Status { get; set; } = "Checked-In";
