@@ -2,6 +2,8 @@
 using Hotel_KYC_Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using CsvHelper;
+using System.Globalization;
 
 namespace Hotel_KYC_Api.Controllers
 {
@@ -16,7 +18,7 @@ namespace Hotel_KYC_Api.Controllers
             _context = context;
         }
 
-        // ✅ REGISTER GUEST
+        // ✅ REGISTER SINGLE GUEST
         [HttpPost("register-guest")]
         public async Task<IActionResult> RegisterGuest([FromBody] GuestRegistration guest)
         {
@@ -28,13 +30,14 @@ namespace Hotel_KYC_Api.Controllers
                 if (guest.HotelId == 0)
                     guest.HotelId = 1;
 
-guest.CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+                guest.CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+
                 _context.GuestRegistrations.Add(guest);
                 await _context.SaveChangesAsync();
 
                 return Ok(new
                 {
-                    message = "Guest registration completed successfully",
+                    message = "Guest registered successfully",
                     guestId = guest.Id
                 });
             }
@@ -42,13 +45,63 @@ guest.CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
             {
                 return StatusCode(500, new
                 {
-                    message = "Database error occurred",
+                    message = "Database error",
                     details = ex.InnerException?.Message ?? ex.Message
                 });
             }
         }
 
-        // ✅ ALL GUESTS (FIXED)
+        // 🚀🔥 CSV BULK UPLOAD
+        [HttpPost("upload-csv")]
+        public async Task<IActionResult> UploadCsv(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest("No file uploaded");
+
+            try
+            {
+                using var reader = new StreamReader(file.OpenReadStream());
+                using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+
+                var records = csv.GetRecords<GuestRegistration>().ToList();
+
+                foreach (var record in records)
+                {
+                    // Default hotel
+                    if (record.HotelId == 0)
+                        record.HotelId = 1;
+
+                    // UTC fix
+                    record.CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+
+                    // Basic duplicate check (optional)
+                    bool exists = await _context.GuestRegistrations.AnyAsync(g =>
+                        g.AadhaarNumber == record.AadhaarNumber &&
+                        g.MobileNumber == record.MobileNumber);
+
+                    if (!exists)
+                        _context.GuestRegistrations.Add(record);
+                }
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    message = "CSV uploaded successfully",
+                    totalRecords = records.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "CSV upload failed",
+                    details = ex.Message
+                });
+            }
+        }
+
+        // ✅ ALL GUESTS
         [HttpGet("all-guests")]
         public async Task<IActionResult> GetAllGuests()
         {
@@ -66,14 +119,9 @@ guest.CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
                         aadhaarNumber = g.AadhaarNumber,
                         adults = g.Adults,
                         kids = g.Kids,
-
-                        // ✅ VERY IMPORTANT (missing tha)
                         createdAt = g.CreatedAt,
-
-                        // ✅ match Flutter model names
                         checkInTime = g.CheckInTime ?? "N/A",
                         checkOutTime = g.CheckOutTime ?? "Present",
-
                         hotelName = g.Hotel != null ? g.Hotel.HotelName : "N/A"
                     })
                     .ToListAsync();
@@ -86,13 +134,13 @@ guest.CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
             }
         }
 
-        // ✅ FLAGGED
+        // 🚨 FLAGGED GUESTS
         [HttpGet("flagged-guests")]
         public async Task<IActionResult> GetFlaggedGuests()
         {
             var flaggedGuests = await _context.GuestRegistrations
                 .Include(g => g.Hotel)
-                .Where(g => g.IsFlagged == true || g.AadhaarNumber.Length < 12)
+                .Where(g => g.IsFlagged || g.AadhaarNumber.Length < 12)
                 .OrderByDescending(g => g.CreatedAt)
                 .Select(g => new
                 {
@@ -110,7 +158,7 @@ guest.CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
             return Ok(flaggedGuests);
         }
 
-        // ✅ HOTELS
+        // 🏨 ALL HOTELS
         [HttpGet("all-registered-hotels")]
         public async Task<IActionResult> GetAllRegisteredHotels()
         {
@@ -129,7 +177,7 @@ guest.CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
             return Ok(hotels);
         }
 
-        // ✅ HOTEL WISE GUESTS
+        // 🏨 HOTEL-WISE GUESTS
         [HttpGet("by-hotel/{hotelId}")]
         public async Task<IActionResult> GetGuestsByHotel(int hotelId)
         {
