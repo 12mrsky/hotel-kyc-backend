@@ -16,12 +16,13 @@ namespace Hotel_KYC_Api.Models
         public string GSTNumber { get; set; } = string.Empty;
 
         [Required]
+        [Phone] // ✅ validation added
         public string MobileNumber { get; set; } = string.Empty;
 
         [Required]
         public string Address { get; set; } = string.Empty;
 
-        // ✅ FIXED: UTC time (PostgreSQL compatible)
+        // ✅ PostgreSQL SAFE
         public DateTime CreatedAt { get; set; } = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
     }
 }
