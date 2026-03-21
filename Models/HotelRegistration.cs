@@ -8,19 +8,20 @@ namespace Hotel_KYC_Api.Models
         public int Id { get; set; }
 
         [Required]
-        public string HotelName { get; set; }
+        public string HotelName { get; set; } = string.Empty;
 
         [Required]
-        public string OwnerName { get; set; }
+        public string OwnerName { get; set; } = string.Empty;
 
-        public string GSTNumber { get; set; }
-
-        [Required]
-        public string MobileNumber { get; set; }
+        public string GSTNumber { get; set; } = string.Empty;
 
         [Required]
-        public string Address { get; set; }
+        public string MobileNumber { get; set; } = string.Empty;
 
-        public DateTime CreatedAt { get; set; } = DateTime.Now;
+        [Required]
+        public string Address { get; set; } = string.Empty;
+
+        // ✅ FIXED: UTC time (PostgreSQL compatible)
+        public DateTime CreatedAt { get; set; } = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
     }
 }
